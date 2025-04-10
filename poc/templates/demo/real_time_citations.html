@@ -1,0 +1,809 @@
+{% extends "base.html" %}
+
+{% block title %}Real-Time Citations Demo - AIC-IF{% endblock %}
+
+{% block head_extra %}
+<style>
+    .ai-chat-container {
+        height: 450px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        background-color: #f8f9fa;
+    }
+    .message {
+        padding: 10px 15px;
+        margin: 10px;
+        border-radius: 10px;
+        max-width: 75%;
+    }
+    .user-message {
+        background-color: #e9ecef;
+        margin-left: auto;
+    }
+    .ai-message {
+        background-color: #007bff;
+        color: white;
+        margin-right: auto;
+    }
+    .typing-indicator {
+        display: inline-block;
+        padding: 10px 15px;
+        background-color: #e9ecef;
+        border-radius: 10px;
+        margin: 10px;
+    }
+    .typing-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #777;
+        margin-right: 3px;
+        animation: typing 1.4s infinite ease-in-out;
+    }
+    .typing-dot:nth-child(1) { animation-delay: 0s; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing {
+        0%, 60%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-5px); }
+    }
+    .citation-marker {
+        font-size: 0.8em;
+        vertical-align: super;
+        color: #e67e22;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    .citation-popover {
+        position: absolute;
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        max-width: 300px;
+        z-index: 1000;
+        display: none;
+    }
+    .citation-event {
+        padding: 10px;
+        margin-bottom: 10px;
+        border-left: 3px solid #3498db;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
+    }
+    .citation-event.new {
+        animation: highlightNew 2s ease;
+    }
+    @keyframes highlightNew {
+        0% { background-color: #d5f5e3; }
+        100% { background-color: #f8f9fa; }
+    }
+    #queryInput {
+        height: 60px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="text-primary"><i class="fas fa-clock me-2"></i> Real-Time Citations Demo</h2>
+        <p class="lead">
+            Experience how the AIC-IF framework tracks and attributes scientific content in real-time as AI systems use it.
+        </p>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i> This interactive demonstration shows how citation events are automatically generated, logged, and attributed as an AI responds to queries using scientific content.
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">AI Assistant Chat</h5>
+            </div>
+            <div class="card-body">
+                <!-- Chat container -->
+                <div id="aiChat" class="ai-chat-container mb-3">
+                    <div class="ai-message message">
+                        Hello! I'm an AI research assistant with the AIC-IF framework integrated. Ask me a question about climate science, marine ecosystems, or biodiversity, and I'll provide an answer with proper real-time citations to scientific sources.
+                    </div>
+                </div>
+                
+                <!-- Chat input -->
+                <form id="queryForm">
+                    <div class="input-group">
+                        <textarea id="queryInput" class="form-control" placeholder="Ask me a question about climate science, marine ecosystems, or biodiversity..." rows="2"></textarea>
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-paper-plane me-1"></i> Send
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Sample Questions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-primary w-100 sample-question">
+                            How will climate change affect coral reefs?
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-primary w-100 sample-question">
+                            What are the main drivers of biodiversity loss in marine ecosystems?
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-primary w-100 sample-question">
+                            How effective are marine protected areas for conservation?
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-primary w-100 sample-question">
+                            What methods are used to measure ocean acidification?
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Impact Factor Dashboard (initially hidden) -->
+        <div id="impactFactorDashboard" class="card mb-4 d-none">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>AIC-IF Dashboard</h5>
+                <button type="button" class="btn btn-sm btn-light" id="toggleDashboardBtn" title="Toggle Dashboard">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
+            </div>
+            <div class="card-body" id="dashboardContent">
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="p-3 border rounded text-center">
+                            <h6 class="text-muted mb-1">Total Citations</h6>
+                            <h3 id="totalCitations" class="mb-0 text-primary">0</h3>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 border rounded text-center">
+                            <h6 class="text-muted mb-1">Average Impact</h6>
+                            <h3 id="avgImpact" class="mb-0 text-primary">0.00</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <h6 class="border-bottom pb-2 mb-3">Researcher Impact Factors</h6>
+                <div id="researcherImpacts">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Smith et al.</span>
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1 me-2" style="width: 100px; height: 8px;">
+                                <div class="progress-bar bg-success" style="width: 92%"></div>
+                            </div>
+                            <span class="badge bg-success">0.92</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Johnson & Williams</span>
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1 me-2" style="width: 100px; height: 8px;">
+                                <div class="progress-bar bg-success" style="width: 85%"></div>
+                            </div>
+                            <span class="badge bg-success">0.85</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Lee et al.</span>
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1 me-2" style="width: 100px; height: 8px;">
+                                <div class="progress-bar bg-primary" style="width: 76%"></div>
+                            </div>
+                            <span class="badge bg-primary">0.76</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Wong & Chen</span>
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1 me-2" style="width: 100px; height: 8px;">
+                                <div class="progress-bar bg-info" style="width: 65%"></div>
+                            </div>
+                            <span class="badge bg-info">0.65</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Real-time Citation Events -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Real-Time Citation Events</h5>
+                <span id="citationCounter" class="badge bg-light text-dark">0</span>
+            </div>
+            <div class="card-body p-0">
+                <div id="citationEvents" class="p-3" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center py-5">
+                        <i class="fas fa-quote-right fa-3x text-muted mb-3"></i>
+                        <p>No citation events yet.</p>
+                        <p class="text-muted">Ask a question to see citations being generated in real-time.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">About This Demo</h5>
+            </div>
+            <div class="card-body">
+                <p>This demonstration showcases how the AIC-IF framework:</p>
+                <ul>
+                    <li><i class="fas fa-check-circle text-success me-2"></i> Automatically detects when scientific content is used by AI</li>
+                    <li><i class="fas fa-check-circle text-success me-2"></i> Logs citation events in real-time</li>
+                    <li><i class="fas fa-check-circle text-success me-2"></i> Calculates contribution scores for each source</li>
+                    <li><i class="fas fa-check-circle text-success me-2"></i> Provides proper attribution through interactive citations</li>
+                </ul>
+                <hr>
+                <p class="mb-0"><small class="text-muted">Note: For demonstration purposes, this demo uses predefined responses with simulated citation events. In a production environment, the AIC-IF framework would integrate with the actual AI model architecture.</small></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Citation popover -->
+<div id="citationPopover" class="citation-popover"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const queryForm = document.getElementById('queryForm');
+    const queryInput = document.getElementById('queryInput');
+    const aiChat = document.getElementById('aiChat');
+    const citationEvents = document.getElementById('citationEvents');
+    const citationCounter = document.getElementById('citationCounter');
+    const citationPopover = document.getElementById('citationPopover');
+    const sampleButtons = document.querySelectorAll('.sample-question');
+    const impactFactorDashboard = document.getElementById('impactFactorDashboard');
+    const toggleDashboardBtn = document.getElementById('toggleDashboardBtn');
+    const dashboardContent = document.getElementById('dashboardContent');
+    const totalCitations = document.getElementById('totalCitations');
+    const avgImpact = document.getElementById('avgImpact');
+    
+    // Track citation count
+    let citationCount = 0;
+    
+    // Track all citations for impact factor calculations
+    let allCitations = [];
+    
+    // Toggle dashboard visibility
+    if (toggleDashboardBtn) {
+        toggleDashboardBtn.addEventListener('click', function() {
+            const icon = this.querySelector('i');
+            if (icon.classList.contains('fa-chevron-up')) {
+                // Hide content
+                dashboardContent.style.display = 'none';
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                // Show content
+                dashboardContent.style.display = 'block';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            }
+        });
+    }
+    
+    // Sample responses with citations
+    const sampleResponses = {
+        "How will climate change affect coral reefs?": {
+            text: "Climate change poses several critical threats to coral reefs worldwide[1]. Rising ocean temperatures are the primary concern, leading to coral bleaching events that have increased in frequency and severity since the 1980s[2]. When water temperatures remain too high for too long, corals expel their symbiotic algae (zooxanthellae) which provide them with nutrients, leading to bleaching and potentially death[1].\n\nOcean acidification, caused by increased absorption of atmospheric CO2, reduces calcification rates in reef-building organisms, weakening coral skeletons and slowing reef growth[3]. This makes reefs more vulnerable to physical damage from storms, which are also predicted to increase in intensity due to climate change[2].\n\nModels project that under high-emission scenarios, 70-90% of remaining coral reefs could disappear by 2050[3]. However, some reefs in areas with strong water circulation or upwelling may serve as climate refugia[4], and certain coral species show greater resilience than others[1].",
+            citations: [
+                {
+                    marker: "1",
+                    doi: "10.1038/s41586-023-06792-0",
+                    title: "Climate change impact on marine ecosystems",
+                    authors: "Smith et al.",
+                    year: "2023",
+                    journal: "Nature",
+                    contribution_score: 0.92
+                },
+                {
+                    marker: "2",
+                    doi: "10.1126/science.abd4896",
+                    title: "Ocean acidification and coral reefs",
+                    authors: "Johnson & Williams",
+                    year: "2022",
+                    journal: "Science",
+                    contribution_score: 0.85
+                },
+                {
+                    marker: "3",
+                    doi: "10.1073/pnas.2023152118",
+                    title: "Biodiversity loss in tropical marine ecosystems",
+                    authors: "Lee et al.",
+                    year: "2023",
+                    journal: "PNAS",
+                    contribution_score: 0.76
+                },
+                {
+                    marker: "4",
+                    doi: "10.1016/j.ocecoaman.2022.12.007",
+                    title: "Climate refugia for coral reef conservation",
+                    authors: "Wong & Chen",
+                    year: "2022",
+                    journal: "Ocean & Coastal Management",
+                    contribution_score: 0.65
+                }
+            ]
+        },
+        "What are the main drivers of biodiversity loss in marine ecosystems?": {
+            text: "Marine biodiversity loss is driven by multiple interacting human pressures[1]. Overfishing is perhaps the most pervasive threat, with approximately 34% of global fish stocks currently overexploited[2]. Industrial fishing practices like bottom trawling not only deplete target species but also damage seafloor habitats and capture non-target species as bycatch[1].\n\nHabitat destruction from coastal development, port construction, and aquaculture has led to significant losses of critical habitats including mangroves (35% global loss), seagrass meadows (29% loss), and salt marshes (50% loss) over the past century[3]. These habitats serve as crucial nursery grounds for many marine species.\n\nPollution, including plastic debris, agricultural runoff, and industrial waste, degrades water quality and can cause eutrophication leading to harmful algal blooms and hypoxic zones[2]. Climate change amplifies these threats through ocean warming, acidification, and deoxygenation, causing range shifts, phenological mismatches, and physiological stress[4].\n\nInvasive species introduced through shipping, aquaculture escapes, and the aquarium trade can outcompete native species, alter habitats, and spread diseases[3]. Emerging threats include deep-sea mining, marine noise pollution, and increased shipping activity in previously inaccessible Arctic waters[1].",
+            citations: [
+                {
+                    marker: "1",
+                    doi: "10.1126/science.aba4658",
+                    title: "Multiple stressors threaten global marine biodiversity",
+                    authors: "Garcia et al.",
+                    year: "2022",
+                    journal: "Science",
+                    contribution_score: 0.95
+                },
+                {
+                    marker: "2",
+                    doi: "10.1038/s41586-021-03371-z",
+                    title: "Global fisheries status and trends",
+                    authors: "Wilson & Ahmed",
+                    year: "2021",
+                    journal: "Nature",
+                    contribution_score: 0.89
+                },
+                {
+                    marker: "3",
+                    doi: "10.1073/pnas.2023152118",
+                    title: "Biodiversity loss in tropical marine ecosystems",
+                    authors: "Lee et al.",
+                    year: "2023",
+                    journal: "PNAS",
+                    contribution_score: 0.82
+                },
+                {
+                    marker: "4",
+                    doi: "10.1038/s41586-023-06792-0",
+                    title: "Climate change impact on marine ecosystems",
+                    authors: "Smith et al.",
+                    year: "2023",
+                    journal: "Nature",
+                    contribution_score: 0.78
+                }
+            ]
+        },
+        "How effective are marine protected areas for conservation?": {
+            text: "Marine Protected Areas (MPAs) have demonstrated significant conservation benefits when properly designed, implemented, and enforced[1]. Well-managed MPAs show an average increase of 21% in species diversity, 28% in organism size, and 166% in density (number of animals per area) compared to unprotected areas[2].\n\nNo-take marine reserves (the strictest form of MPAs) are particularly effective, with studies showing biomass increases of 446% on average inside reserves compared to unprotected areas or before protection[1]. Recovery timelines vary, with fish populations showing increases within 5-10 years of protection, while habitat-forming species like corals and seagrasses may require decades to fully recover[3].\n\nMPAs also provide spillover benefits to surrounding fisheries, as growing populations within reserves export adults and larvae to adjacent areas[2]. Economic benefits include enhanced tourism opportunities and sustainable fisheries in the surrounding waters[4].\n\nHowever, effectiveness varies widely based on several factors. Size matters—larger MPAs better protect mobile species and provide greater resilience against external threats[3]. Connectivity between MPAs is crucial for supporting metapopulations and facilitating recovery after disturbances[1]. Most importantly, proper enforcement and compliance are essential, as MPAs without adequate protection show little difference from unprotected areas[4].",
+            citations: [
+                {
+                    marker: "1",
+                    doi: "10.1073/pnas.2000158117",
+                    title: "Global effectiveness of marine protected areas",
+                    authors: "Brown & Martinez",
+                    year: "2020",
+                    journal: "PNAS",
+                    contribution_score: 0.94
+                },
+                {
+                    marker: "2",
+                    doi: "10.1038/s41586-020-2146-7",
+                    title: "MPA network performance and ecological outcomes",
+                    authors: "Johnson et al.",
+                    year: "2020",
+                    journal: "Nature",
+                    contribution_score: 0.88
+                },
+                {
+                    marker: "3",
+                    doi: "10.1111/conl.12247",
+                    title: "Recovery trajectories in marine reserves",
+                    authors: "Wong & Roberts",
+                    year: "2021",
+                    journal: "Conservation Letters",
+                    contribution_score: 0.79
+                },
+                {
+                    marker: "4",
+                    doi: "10.1016/j.marpol.2022.104987",
+                    title: "Socioeconomic benefits of marine conservation",
+                    authors: "Garcia & Chen",
+                    year: "2022",
+                    journal: "Marine Policy",
+                    contribution_score: 0.71
+                }
+            ]
+        },
+        "What methods are used to measure ocean acidification?": {
+            text: "Ocean acidification is monitored through several complementary methods[1]. The most direct approach measures seawater pH, which quantifies hydrogen ion concentration and has decreased by approximately 0.1 units since pre-industrial times (representing a 30% increase in acidity)[2]. Modern measurement techniques use glass electrodes, spectrophotometric methods with pH-sensitive dyes, or ion-sensitive field-effect transistors (ISFETs), with spectrophotometric methods currently providing the highest precision (±0.0004 pH units)[1].\n\nTotal alkalinity (TA) measurements are equally important, as they quantify the ocean's buffering capacity against acidification[3]. Together with dissolved inorganic carbon (DIC) measurements, these parameters allow scientists to calculate the complete carbonate system, including pH, pCO2 (partial pressure of CO2), and carbonate saturation states (Ω)[2].\n\nAutonomous sensors on buoys, gliders, and floats enable continuous monitoring across different depths and locations[3]. The Global Ocean Acidification Observing Network (GOA-ON) coordinates international monitoring efforts, while satellite measurements of sea surface temperature and color help estimate acidification patterns across large areas[4].\n\nBiological indicators, particularly calcifying organisms like corals, mollusks, and certain plankton species, serve as living monitors of acidification impacts, showing decreased calcification rates and shell dissolution under acidified conditions[1].",
+            citations: [
+                {
+                    marker: "1",
+                    doi: "10.1021/acs.est.0c04917",
+                    title: "Advances in ocean acidification monitoring techniques",
+                    authors: "Zhang & Williams",
+                    year: "2021",
+                    journal: "Environmental Science & Technology",
+                    contribution_score: 0.93
+                },
+                {
+                    marker: "2",
+                    doi: "10.1126/science.abd4896",
+                    title: "Ocean acidification and coral reefs",
+                    authors: "Johnson & Williams",
+                    year: "2022",
+                    journal: "Science",
+                    contribution_score: 0.87
+                },
+                {
+                    marker: "3",
+                    doi: "10.1016/j.dsr2.2022.103155",
+                    title: "Autonomous sensing systems for ocean chemistry",
+                    authors: "Chen et al.",
+                    year: "2022",
+                    journal: "Deep Sea Research Part II",
+                    contribution_score: 0.76
+                },
+                {
+                    marker: "4",
+                    doi: "10.1038/s41558-021-01068-9",
+                    title: "Global patterns of marine carbonate chemistry",
+                    authors: "Garcia & Kumar",
+                    year: "2021",
+                    journal: "Nature Climate Change",
+                    contribution_score: 0.69
+                }
+            ]
+        }
+    };
+    
+    // Default fallback response
+    const defaultResponse = {
+        text: "I don't have specific information on that topic, but I can provide some general insights based on recent research[1]. The field you're asking about is an active area of study, with scientists continuously publishing new findings to expand our understanding[2].\n\nIf you'd like more specific information, please try asking about climate science, marine ecosystems, or biodiversity conservation, as these are areas where I have more detailed knowledge.",
+        citations: [
+            {
+                marker: "1",
+                doi: "10.1038/s41586-023-06792-0",
+                title: "Climate change impact on marine ecosystems",
+                authors: "Smith et al.",
+                year: "2023",
+                journal: "Nature",
+                contribution_score: 0.65
+            },
+            {
+                marker: "2",
+                doi: "10.1073/pnas.2023152118",
+                title: "Biodiversity loss in tropical marine ecosystems",
+                authors: "Lee et al.",
+                year: "2023",
+                journal: "PNAS",
+                contribution_score: 0.55
+            }
+        ]
+    };
+    
+    // Find closest matching response
+    function findResponse(query) {
+        // Convert query to lowercase for matching
+        const normalizedQuery = query.toLowerCase();
+        
+        // Check for exact matches first
+        if (sampleResponses[query]) {
+            return sampleResponses[query];
+        }
+        
+        // Check for partial matches
+        for (const [key, response] of Object.entries(sampleResponses)) {
+            if (normalizedQuery.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedQuery)) {
+                return response;
+            }
+        }
+        
+        // Check for keyword matches
+        const keywords = {
+            "coral": "How will climate change affect coral reefs?",
+            "reef": "How will climate change affect coral reefs?",
+            "biodiversity": "What are the main drivers of biodiversity loss in marine ecosystems?",
+            "species": "What are the main drivers of biodiversity loss in marine ecosystems?",
+            "marine": "What are the main drivers of biodiversity loss in marine ecosystems?",
+            "protected": "How effective are marine protected areas for conservation?",
+            "mpa": "How effective are marine protected areas for conservation?",
+            "conservation": "How effective are marine protected areas for conservation?",
+            "pH": "What methods are used to measure ocean acidification?",
+            "acidification": "What methods are used to measure ocean acidification?",
+            "measurement": "What methods are used to measure ocean acidification?"
+        };
+        
+        for (const [keyword, responseKey] of Object.entries(keywords)) {
+            if (normalizedQuery.includes(keyword)) {
+                return sampleResponses[responseKey];
+            }
+        }
+        
+        // Return default response if no match
+        return defaultResponse;
+    }
+    
+    // Process and format AI response with citations
+    function processResponse(response) {
+        let text = response.text;
+        
+        // Replace citation markers with clickable spans
+        response.citations.forEach(citation => {
+            const marker = `[${citation.marker}]`;
+            const span = `<span class="citation-marker" data-citation-id="${citation.marker}">[${citation.marker}]</span>`;
+            text = text.replace(marker, span);
+        });
+        
+        return text;
+    }
+    
+    // Calculate and update impact factor metrics
+    function updateImpactFactorDashboard() {
+        // Show the dashboard if it's hidden
+        if (impactFactorDashboard.classList.contains('d-none')) {
+            impactFactorDashboard.classList.remove('d-none');
+        }
+        
+        // Update total citations
+        totalCitations.textContent = citationCount;
+        
+        // Calculate average impact
+        const avgScore = allCitations.reduce((sum, citation) => sum + citation.contribution_score, 0) / allCitations.length;
+        avgImpact.textContent = avgScore.toFixed(2);
+        
+        // Group by authors and calculate their impact factors
+        const authorImpacts = {};
+        allCitations.forEach(citation => {
+            if (!authorImpacts[citation.authors]) {
+                authorImpacts[citation.authors] = {
+                    citations: 0,
+                    totalScore: 0
+                };
+            }
+            authorImpacts[citation.authors].citations++;
+            authorImpacts[citation.authors].totalScore += citation.contribution_score;
+        });
+        
+        // Calculate average impact factor for each author
+        const authorRows = [];
+        for (const author in authorImpacts) {
+            const avgImpact = authorImpacts[author].totalScore / authorImpacts[author].citations;
+            authorRows.push({
+                author: author,
+                avgImpact: avgImpact,
+                citations: authorImpacts[author].citations
+            });
+        }
+        
+        // Sort by impact factor (highest first)
+        authorRows.sort((a, b) => b.avgImpact - a.avgImpact);
+        
+        // Only show top 4 authors
+        const topAuthors = authorRows.slice(0, 4);
+        
+        // Generate the HTML for researcher impacts
+        const researcherImpacts = document.getElementById('researcherImpacts');
+        if (researcherImpacts) {
+            researcherImpacts.innerHTML = topAuthors.map(author => {
+                // Determine badge color based on impact factor
+                let badgeClass = 'bg-info';
+                if (author.avgImpact >= 0.85) {
+                    badgeClass = 'bg-success';
+                } else if (author.avgImpact >= 0.75) {
+                    badgeClass = 'bg-primary';
+                }
+                
+                return `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${author.author}</span>
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1 me-2" style="width: 100px; height: 8px;">
+                                <div class="progress-bar ${badgeClass}" style="width: ${author.avgImpact * 100}%"></div>
+                            </div>
+                            <span class="badge ${badgeClass}">${author.avgImpact.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+    
+    // Add citation event to the panel
+    function addCitationEvent(citation) {
+        // Track citation for impact factor calculations
+        allCitations.push(citation);
+        
+        // Check if empty state message is showing
+        if (citationEvents.querySelector('.text-center')) {
+            citationEvents.innerHTML = '';
+        }
+        
+        // Create citation event element
+        const event = document.createElement('div');
+        event.className = 'citation-event new';
+        
+        // Format the citation
+        event.innerHTML = `
+            <h6>${citation.title}</h6>
+            <div class="d-flex justify-content-between align-items-start">
+                <p class="mb-0">${citation.authors} (${citation.year}), ${citation.journal}</p>
+                <span class="badge bg-primary">Score: ${citation.contribution_score.toFixed(2)}</span>
+            </div>
+            <small class="text-muted">DOI: ${citation.doi}</small>
+        `;
+        
+        // Add to citation events container
+        citationEvents.prepend(event);
+        
+        // Update citation counter
+        citationCount++;
+        citationCounter.textContent = citationCount;
+        
+        // Update impact factor dashboard
+        updateImpactFactorDashboard();
+        
+        // Remove 'new' class after animation
+        setTimeout(() => {
+            event.classList.remove('new');
+        }, 2000);
+    }
+    
+    // Show typing indicator
+    function showTypingIndicator() {
+        const typingIndicator = document.createElement('div');
+        typingIndicator.className = 'typing-indicator';
+        typingIndicator.id = 'typingIndicator';
+        typingIndicator.innerHTML = `
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+        `;
+        aiChat.appendChild(typingIndicator);
+        aiChat.scrollTop = aiChat.scrollHeight;
+    }
+    
+    // Remove typing indicator
+    function removeTypingIndicator() {
+        const typingIndicator = document.getElementById('typingIndicator');
+        if (typingIndicator) {
+            typingIndicator.remove();
+        }
+    }
+    
+    // Add a message to the chat
+    function addMessage(text, isUser = false) {
+        const message = document.createElement('div');
+        message.className = isUser ? 'user-message message' : 'ai-message message';
+        message.innerHTML = text;
+        aiChat.appendChild(message);
+        aiChat.scrollTop = aiChat.scrollHeight;
+    }
+    
+    // Handle query submission
+    queryForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const query = queryInput.value.trim();
+        if (!query) return;
+        
+        // Add user message
+        addMessage(query, true);
+        
+        // Show typing indicator
+        showTypingIndicator();
+        
+        // Clear input
+        queryInput.value = '';
+        
+        // Simulate AI thinking time
+        setTimeout(() => {
+            // Find response
+            const response = findResponse(query);
+            
+            // Process response
+            const formattedResponse = processResponse(response);
+            
+            // Remove typing indicator
+            removeTypingIndicator();
+            
+            // Add AI message
+            addMessage(formattedResponse);
+            
+            // Log citation events with slight delay between each
+            response.citations.forEach((citation, index) => {
+                setTimeout(() => {
+                    addCitationEvent(citation);
+                }, index * 1000); // 1 second delay between each citation
+            });
+            
+            // Setup citation popover functionality
+            setupCitationPopovers();
+        }, 1500); // 1.5 second delay to simulate thinking
+    });
+    
+    // Handle citation marker clicks
+    function setupCitationPopovers() {
+        const markers = document.querySelectorAll('.citation-marker');
+        
+        markers.forEach(marker => {
+            marker.addEventListener('click', function(e) {
+                e.stopPropagation();
+                
+                // Get citation ID
+                const citationId = this.getAttribute('data-citation-id');
+                
+                // Find the right response based on the last AI message
+                const lastAIMessage = Array.from(document.querySelectorAll('.ai-message')).pop();
+                if (!lastAIMessage) return;
+                
+                // Extract text to find matching response
+                const messageText = lastAIMessage.textContent;
+                
+                // Find the response that matches
+                let citation = null;
+                for (const [key, response] of Object.entries(sampleResponses)) {
+                    if (messageText.includes(response.text.substring(0, 50))) {
+                        citation = response.citations.find(c => c.marker === citationId);
+                        if (citation) break;
+                    }
+                }
+                
+                // Fallback to default if not found
+                if (!citation) {
+                    citation = defaultResponse.citations.find(c => c.marker === citationId);
+                }
+                
+                if (!citation) return;
+                
+                // Populate and position popover
+                citationPopover.innerHTML = `
+                    <h6>${citation.title}</h6>
+                    <p class="mb-1">${citation.authors} (${citation.year})</p>
+                    <p class="mb-1 text-muted">${citation.journal}</p>
+                    <small>DOI: ${citation.doi}</small>
+                    <div class="mt-2">
+                        <small class="text-muted">Contribution Score: ${citation.contribution_score.toFixed(2)}</small>
+                        <div class="progress" style="height: 5px;">
+                            <div class="progress-bar bg-success" style="width: ${citation.contribution_score * 100}%"></div>
+                        </div>
+                    </div>
+                `;
+                
+                citationPopover.style.display = 'block';
+                citationPopover.style.left = (e.pageX + 10) + 'px';
+                citationPopover.style.top = (e.pageY + 10) + 'px';
+            });
+        });
+    }
+    
+    // Close citation popover when clicking elsewhere
+    document.addEventListener('click', function() {
+        citationPopover.style.display = 'none';
+    });
+    
+    // Sample question buttons
+    sampleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            queryInput.value = this.textContent.trim();
+            queryForm.dispatchEvent(new Event('submit'));
+        });
+    });
+});
+</script>
+{% endblock %}

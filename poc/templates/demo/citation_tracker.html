@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+
+{% block title %}Citation Tracking Demo - AIC-IF{% endblock %}
+
+{% block head_extra %}
+<style>
+    .citation-card {
+        transition: all 0.3s ease;
+    }
+    .citation-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .citation-dot {
+        height: 10px;
+        width: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    .api-response {
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.8rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="text-primary"><i class="fas fa-clipboard-list me-2"></i> Citation Tracking Demo</h2>
+        <p class="lead">
+            Experience how the AIC-IF framework automatically logs citation events when AI systems use scientific content.
+        </p>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i> This demonstration shows the real-time citation logging and attribution capabilities of the AIC-IF framework, including how contributions are measured and tracked.
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Log a Citation</h5>
+            </div>
+            <div class="card-body">
+                <form id="citationForm">
+                    <div class="mb-3">
+                        <label for="doiInput" class="form-label">DOI</label>
+                        <input type="text" class="form-control" id="doiInput" placeholder="10.1038/s41586-023-06792-0" required>
+                        <div class="form-text">Digital Object Identifier for the cited work</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="titleInput" class="form-label">Source Title</label>
+                        <input type="text" class="form-control" id="titleInput" placeholder="Climate change impact on marine ecosystems">
+                        <div class="form-text">Title of the paper, dataset, or resource</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="sourceTypeSelect" class="form-label">Source Type</label>
+                        <select class="form-select" id="sourceTypeSelect">
+                            <option value="journal_article">Journal Article</option>
+                            <option value="dataset">Dataset</option>
+                            <option value="code">Code Repository</option>
+                            <option value="book">Book</option>
+                            <option value="preprint">Preprint</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="authorsInput" class="form-label">Authors</label>
+                        <input type="text" class="form-control" id="authorsInput" placeholder="Smith et al.">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="aiModelSelect" class="form-label">AI Model</label>
+                        <select class="form-select" id="aiModelSelect">
+                            <option value="GPT-4">GPT-4</option>
+                            <option value="Claude-3">Claude-3</option>
+                            <option value="Llama-3">Llama-3</option>
+                            <option value="PaLM-2">PaLM-2</option>
+                            <option value="Custom">Custom Model</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="contextInput" class="form-label">Citation Context</label>
+                        <textarea class="form-control" id="contextInput" rows="2" placeholder="Answer to climate research query"></textarea>
+                        <div class="form-text">Context in which the source was cited</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="contributionInput" class="form-label">Contribution Score</label>
+                        <input type="range" class="form-range" id="contributionInput" min="0" max="1" step="0.01" value="0.75">
+                        <div class="d-flex justify-content-between">
+                            <span>0</span>
+                            <span id="contributionValue">0.75</span>
+                            <span>1</span>
+                        </div>
+                        <div class="form-text">How significant was this source to the AI's response?</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-plus-circle me-2"></i> Log Citation
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">API Response</h5>
+            </div>
+            <div class="card-body">
+                <div id="apiResponseContainer" class="api-response bg-light p-3 rounded">
+                    <p class="text-muted">API response will appear here...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-7">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Citations</h5>
+                <button id="refreshButton" class="btn btn-sm btn-light">
+                    <i class="fas fa-sync-alt me-1"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="loadingCitations" class="text-center py-5 d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Loading citations...</p>
+                </div>
+                
+                <div id="citationsList"></div>
+                
+                <div id="noCitations" class="text-center py-5">
+                    <i class="fas fa-clipboard fa-4x text-muted mb-3"></i>
+                    <p>No citation events have been logged yet.</p>
+                    <p>Use the form on the left to create your first citation.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Citation Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 text-center">
+                            <h3 id="totalCitations">0</h3>
+                            <p class="mb-0 text-muted">Total Citations</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 text-center">
+                            <h3 id="uniqueSources">0</h3>
+                            <p class="mb-0 text-muted">Unique Sources</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 text-center">
+                            <h3 id="avgContribution">0.0</h3>
+                            <p class="mb-0 text-muted">Avg. Contribution</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6>Source Types Distribution</h6>
+                <div class="mb-3">
+                    <canvas id="sourceTypesChart" height="100"></canvas>
+                </div>
+                
+                <div class="d-grid">
+                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-chart-line me-2"></i> View Full Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const citationForm = document.getElementById('citationForm');
+    const apiResponseContainer = document.getElementById('apiResponseContainer');
+    const contributionInput = document.getElementById('contributionInput');
+    const contributionValue = document.getElementById('contributionValue');
+    const citationsList = document.getElementById('citationsList');
+    const noCitations = document.getElementById('noCitations');
+    const loadingCitations = document.getElementById('loadingCitations');
+    const refreshButton = document.getElementById('refreshButton');
+    
+    // Stats elements
+    const totalCitations = document.getElementById('totalCitations');
+    const uniqueSources = document.getElementById('uniqueSources');
+    const avgContribution = document.getElementById('avgContribution');
+    
+    // Charts
+    let sourceTypesChart = null;
+    
+    // Update contribution value display
+    contributionInput.addEventListener('input', function() {
+        contributionValue.textContent = this.value;
+    });
+    
+    // Form submission
+    citationForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const citationData = {
+            doi: document.getElementById('doiInput').value,
+            source_title: document.getElementById('titleInput').value,
+            source_type: document.getElementById('sourceTypeSelect').value,
+            authors: document.getElementById('authorsInput').value,
+            ai_model: document.getElementById('aiModelSelect').value,
+            context: document.getElementById('contextInput').value,
+            contribution_score: parseFloat(document.getElementById('contributionInput').value)
+        };
+        
+        // Clear previous response
+        apiResponseContainer.innerHTML = '<p class="text-muted">Sending request...</p>';
+        
+        // Send API request
+        fetch('/api/citations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(citationData),
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Display API response
+            apiResponseContainer.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            
+            // If successful, refresh citations list
+            if (data.status === 'success') {
+                fetchCitations();
+                updateStats();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            apiResponseContainer.innerHTML = '<p class="text-danger">Error: ' + error.message + '</p>';
+        });
+    });
+    
+    // Refresh button
+    refreshButton.addEventListener('click', function() {
+        fetchCitations();
+        updateStats();
+    });
+    
+    // Fetch citations
+    function fetchCitations() {
+        loadingCitations.classList.remove('d-none');
+        citationsList.innerHTML = '';
+        noCitations.classList.add('d-none');
+        
+        fetch('/api/citations?limit=10')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' && data.citations.length > 0) {
+                    renderCitations(data.citations);
+                    noCitations.classList.add('d-none');
+                } else {
+                    noCitations.classList.remove('d-none');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                citationsList.innerHTML = '<div class="alert alert-danger">Error loading citations</div>';
+            })
+            .finally(() => {
+                loadingCitations.classList.add('d-none');
+            });
+    }
+    
+    // Render citations
+    function renderCitations(citations) {
+        citationsList.innerHTML = '';
+        
+        citations.forEach(citation => {
+            const date = new Date(citation.timestamp);
+            const formattedDate = date.toLocaleString();
+            
+            let sourceTypeColor = '';
+            switch(citation.source_type) {
+                case 'journal_article':
+                    sourceTypeColor = 'bg-primary';
+                    break;
+                case 'dataset':
+                    sourceTypeColor = 'bg-success';
+                    break;
+                case 'code':
+                    sourceTypeColor = 'bg-warning';
+                    break;
+                default:
+                    sourceTypeColor = 'bg-secondary';
+            }
+            
+            const card = document.createElement('div');
+            card.className = 'card mb-3 citation-card';
+            card.innerHTML = `
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">${citation.source_title || 'Untitled Source'}</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">
+                                <span class="citation-dot ${sourceTypeColor}"></span>
+                                ${citation.source_type || 'Unknown Type'} | ${citation.authors || 'Unknown Authors'}
+                            </h6>
+                        </div>
+                        <span class="badge bg-info">
+                            Score: ${citation.contribution_score.toFixed(2)}
+                        </span>
+                    </div>
+                    <p class="card-text">
+                        <small class="text-muted">DOI: ${citation.doi}</small>
+                    </p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">Cited by ${citation.ai_model} on ${formattedDate}</small>
+                        <span class="badge bg-light text-dark">${citation.context || 'No context'}</span>
+                    </div>
+                </div>
+            `;
+            
+            citationsList.appendChild(card);
+        });
+    }
+    
+    // Update statistics
+    function updateStats() {
+        fetch('/api/stats/top-cited')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Mock data since this is a demo
+                    const stats = {
+                        total: data.top_cited.reduce((sum, item) => sum + item.citation_count, 0),
+                        unique: data.top_cited.length,
+                        avg_contribution: 0.78
+                    };
+                    
+                    totalCitations.textContent = stats.total;
+                    uniqueSources.textContent = stats.unique;
+                    avgContribution.textContent = stats.avg_contribution.toFixed(2);
+                    
+                    // Update chart
+                    updateSourceTypesChart(data.top_cited);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+    }
+    
+    // Update source types chart
+    function updateSourceTypesChart(topCited) {
+        const sourceTypes = {};
+        
+        // Count source types
+        topCited.forEach(item => {
+            const type = item.type || 'unknown';
+            sourceTypes[type] = (sourceTypes[type] || 0) + item.citation_count;
+        });
+        
+        // Prepare chart data
+        const labels = Object.keys(sourceTypes);
+        const data = Object.values(sourceTypes);
+        const colors = [
+            'rgba(52, 152, 219, 0.7)',
+            'rgba(46, 204, 113, 0.7)',
+            'rgba(231, 76, 60, 0.7)',
+            'rgba(243, 156, 18, 0.7)',
+            'rgba(155, 89, 182, 0.7)'
+        ];
+        
+        // Create or update chart
+        const ctx = document.getElementById('sourceTypesChart').getContext('2d');
+        
+        if (sourceTypesChart) {
+            sourceTypesChart.data.labels = labels;
+            sourceTypesChart.data.datasets[0].data = data;
+            sourceTypesChart.update();
+        } else {
+            sourceTypesChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        }
+                    }
+                }
+            });
+        }
+    }
+    
+    // Initial load
+    fetchCitations();
+    updateStats();
+});
+</script>
+{% endblock %}

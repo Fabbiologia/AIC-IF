@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}AIC-IF: AI-Driven Citation Impact Factor Framework{% endblock %}
+
+{% block content %}
+<div class="px-4 py-5 my-5 text-center">
+    <h1 class="display-4 fw-bold text-primary">AI-Driven Citation Impact Factor</h1>
+    <div class="col-lg-8 mx-auto">
+        <p class="lead mb-4">
+            Redefining impact in the age of AI with real-time attribution and equity in scientific credit.
+        </p>
+        <p class="mb-4">
+            The AIC-IF framework measures scholarly impact in an AI-mediated ecosystem, ensuring that researchers receive appropriate credit when their work is used by AI systems.
+        </p>
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mb-5">
+            <a href="{{ url_for('demo.real_time_citations') }}" class="btn btn-primary btn-lg px-4">
+                <i class="fas fa-robot me-2"></i>Try AI Chatbot
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 py-4">
+    <div class="col-md-6">
+        <div class="h-100 p-4 bg-light border rounded-3">
+            <h3>Why AIC-IF?</h3>
+            <ul class="list-unstyled">
+                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> <strong>Real-time attribution</strong> of scientific contributions</li>
+                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> <strong>Equitable recognition</strong> for data, methods, and insights</li>
+                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> <strong>Comprehensive tracking</strong> of AI-mediated citations</li>
+                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> <strong>Transparent contribution metrics</strong> using SHAP/LIME analysis</li>
+                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> <strong>Knowledge graph integration</strong> for research network visualization</li>
+            </ul>
+            <a href="{{ url_for('main.about') }}" class="btn btn-outline-primary mt-2">Learn More</a>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="h-100 p-4 bg-light border rounded-3">
+            <h3>Framework Components</h3>
+            <div class="row g-2">
+                <div class="col-md-6 mb-3">
+                    <div class="p-3 border bg-white rounded">
+                        <h5 class="fs-6"><i class="fas fa-database text-primary me-2"></i> Citation Tracking</h5>
+                        <p class="small">Monitors when and how scholarly outputs are used by AI systems</p>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="p-3 border bg-white rounded">
+                        <h5 class="fs-6"><i class="fas fa-project-diagram text-primary me-2"></i> Knowledge Graph</h5>
+                        <p class="small">Links papers, authors, datasets, and AI-mediated citations</p>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="p-3 border bg-white rounded">
+                        <h5 class="fs-6"><i class="fas fa-chart-pie text-primary me-2"></i> Feature Contributions</h5>
+                        <p class="small">Quantifies the influence of each input using SHAP and LIME</p>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="p-3 border bg-white rounded">
+                        <h5 class="fs-6"><i class="fas fa-shield-alt text-primary me-2"></i> Verification System</h5>
+                        <p class="small">Ensures citation integrity and prevents gaming the system</p>
+                    </div>
+                </div>
+            </div>
+            <a href="{{ url_for('demo.citation_tracker') }}" class="btn btn-outline-primary mt-3">Try the Demo</a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">How It Works</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>For Researchers</h4>
+                        <ol class="list-group list-group-numbered mb-4">
+                            <li class="list-group-item">Your papers, datasets, and code are registered with unique identifiers</li>
+                            <li class="list-group-item">When AI systems use your work, the citation is automatically logged</li>
+                            <li class="list-group-item">SHAP/LIME analysis quantifies the importance of your contribution</li>
+                            <li class="list-group-item">You receive credit in real-time as your work influences AI outputs</li>
+                            <li class="list-group-item">Your AIC-IF score updates dynamically based on actual usage</li>
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>For AI Developers</h4>
+                        <ol class="list-group list-group-numbered mb-4">
+                            <li class="list-group-item">Integrate with the AIC-IF API to log citations automatically</li>
+                            <li class="list-group-item">Improve transparency by attributing sources properly</li>
+                            <li class="list-group-item">Use the feature contribution analysis to understand model behavior</li>
+                            <li class="list-group-item">Build trust by ensuring proper attribution of scientific content</li>
+                            <li class="list-group-item">Access the knowledge graph to enrich your AI's understanding</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

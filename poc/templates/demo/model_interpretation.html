@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+
+{% block title %}Model Interpretability Demo - AIC-IF{% endblock %}
+
+{% block head_extra %}
+<style>
+    .contribution-bar {
+        height: 30px;
+        margin: 5px 0;
+        border-radius: 4px;
+        transition: width 0.5s ease-in-out;
+    }
+    .feature-contribution {
+        margin-bottom: 15px;
+        border-left: 3px solid #3498db;
+        padding-left: 10px;
+    }
+    #featureContributionChart {
+        max-height: 400px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="text-primary"><i class="fas fa-microscope me-2"></i> Model Interpretability Demo</h2>
+        <p class="lead">
+            Explore how SHAP and LIME methods quantify the contribution of scientific data sources to AI model predictions.
+        </p>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i> This demonstration shows how the AIC-IF framework attributes credit to data sources based on their influence on model outcomes, ensuring proper citation and recognition.
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Analysis Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form id="interpretabilityForm">
+                    <div class="mb-3">
+                        <label for="datasetSelect" class="form-label">Select Dataset</label>
+                        <select class="form-select" id="datasetSelect" required>
+                            <option value="" selected disabled>Choose a dataset...</option>
+                            {% for dataset in datasets %}
+                            <option value="{{ dataset.id }}">{{ dataset.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text" id="datasetDescription"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modelSelect" class="form-label">Select Model</label>
+                        <select class="form-select" id="modelSelect" required>
+                            <option value="" selected disabled>Choose a model...</option>
+                            {% for model in models %}
+                            <option value="{{ model.id }}" data-compatible="{{ model.compatible_datasets|tojson }}">{{ model.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Interpretability Method</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="method" id="methodShap" value="shap" checked>
+                            <label class="form-check-label" for="methodShap">
+                                SHAP (SHapley Additive exPlanations)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="method" id="methodLime" value="lime">
+                            <label class="form-check-label" for="methodLime">
+                                LIME (Local Interpretable Model-agnostic Explanations)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-calculator me-2"></i> Analyze Feature Contributions
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">About These Methods</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="accordionMethods">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingShap">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseShap" aria-expanded="true" aria-controls="collapseShap">
+                                <strong>SHAP</strong> Analysis
+                            </button>
+                        </h2>
+                        <div id="collapseShap" class="accordion-collapse collapse show" aria-labelledby="headingShap">
+                            <div class="accordion-body">
+                                <p><strong>SHapley Additive exPlanations (SHAP)</strong> uses game theory to determine how much each feature in a dataset contributes to a prediction. It assigns an importance value to each feature that represents its contribution to the model output.</p>
+                                <p class="mb-0"><small>In the AIC-IF framework, SHAP values directly translate to citation weights and attribution scores.</small></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingLime">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLime" aria-expanded="false" aria-controls="collapseLime">
+                                <strong>LIME</strong> Analysis
+                            </button>
+                        </h2>
+                        <div id="collapseLime" class="accordion-collapse collapse" aria-labelledby="headingLime">
+                            <div class="accordion-body">
+                                <p><strong>Local Interpretable Model-agnostic Explanations (LIME)</strong> works by approximating the complex model with a simpler, interpretable model around a specific prediction. It perturbs the input data and observes how predictions change.</p>
+                                <p class="mb-0"><small>Within AIC-IF, LIME offers an alternative approach for attributing credit to data sources in complex AI systems.</small></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Feature Contributions Analysis</h5>
+            </div>
+            <div class="card-body">
+                <div id="loadingContributions" class="text-center py-5 d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Analyzing feature contributions...</p>
+                </div>
+                
+                <div id="noAnalysisMessage" class="text-center py-5">
+                    <i class="fas fa-chart-pie fa-4x text-muted mb-3"></i>
+                    <p>Select a dataset and model, then click "Analyze Feature Contributions" to see results</p>
+                </div>
+                
+                <div id="analysisResults" class="d-none">
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h4 id="analysisTitle">Analysis Results</h4>
+                            <p id="analysisDescription" class="text-muted"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <canvas id="featureContributionChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <h5>Data Source Attribution</h5>
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-2"></i> Each feature contribution has been logged as a citation event in the AIC-IF system
+                            </div>
+                            <div id="featureContributionsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Citations Generated</h5>
+            </div>
+            <div class="card-body">
+                <p>Feature contributions automatically generate citation events in the AIC-IF system. Each data source receives credit proportional to its contribution to the model's output.</p>
+                
+                <div id="citationEvents" class="d-none">
+                    <div class="alert alert-primary">
+                        <strong><span id="citationCount">0</span> citation events</strong> generated from this analysis
+                    </div>
+                    
+                    <div class="d-grid">
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-chart-line me-2"></i> View on Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('interpretabilityForm');
+    const datasetSelect = document.getElementById('datasetSelect');
+    const datasetDescription = document.getElementById('datasetDescription');
+    const modelSelect = document.getElementById('modelSelect');
+    const loadingContributions = document.getElementById('loadingContributions');
+    const noAnalysisMessage = document.getElementById('noAnalysisMessage');
+    const analysisResults = document.getElementById('analysisResults');
+    const featureContributionsList = document.getElementById('featureContributionsList');
+    const citationEvents = document.getElementById('citationEvents');
+    const citationCount = document.getElementById('citationCount');
+    
+    // Chart instance
+    let contributionChart = null;
+    
+    // Dataset descriptions
+    const datasets = {
+        "climate_data": "Global climate indicators from 1950-2023, including temperature, CO2 levels, sea level, and other metrics.",
+        "biodiversity_data": "Marine biodiversity measurements across coral reef ecosystems, including species richness and environmental factors."
+    };
+    
+    // Update dataset description when selection changes
+    datasetSelect.addEventListener('change', function() {
+        const selectedDataset = this.value;
+        if (datasets[selectedDataset]) {
+            datasetDescription.textContent = datasets[selectedDataset];
+        } else {
+            datasetDescription.textContent = '';
+        }
+        
+        // Filter compatible models
+        const options = Array.from(modelSelect.options);
+        options.forEach(option => {
+            if (option.value) {
+                const compatibleDatasets = JSON.parse(option.dataset.compatible);
+                option.disabled = !compatibleDatasets.includes(selectedDataset);
+            }
+        });
+        
+        // Reset model selection if current selection is incompatible
+        if (modelSelect.selectedIndex > 0) {
+            const compatibleDatasets = JSON.parse(modelSelect.options[modelSelect.selectedIndex].dataset.compatible);
+            if (!compatibleDatasets.includes(selectedDataset)) {
+                modelSelect.selectedIndex = 0;
+            }
+        }
+    });
+    
+    // Form submission
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const dataset_id = datasetSelect.value;
+        const model_id = modelSelect.value;
+        const method = document.querySelector('input[name="method"]:checked').value;
+        
+        if (!dataset_id || !model_id) {
+            alert('Please select both a dataset and a model');
+            return;
+        }
+        
+        // Show loading
+        loadingContributions.classList.remove('d-none');
+        noAnalysisMessage.classList.add('d-none');
+        analysisResults.classList.add('d-none');
+        
+        // Make API request
+        fetch('/demo/feature-contributions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                dataset_id: dataset_id,
+                model_id: model_id,
+                method: method,
+                user_id: 'demo_user'
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Update UI with results
+                displayResults(data.contributions, dataset_id, model_id, method);
+                
+                // Show citation events generated
+                citationEvents.classList.remove('d-none');
+                citationCount.textContent = data.contributions.length;
+            } else {
+                alert('Error: ' + (data.message || 'Failed to analyze contributions'));
+                noAnalysisMessage.classList.remove('d-none');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while analyzing contributions');
+            noAnalysisMessage.classList.remove('d-none');
+        })
+        .finally(() => {
+            loadingContributions.classList.add('d-none');
+        });
+    });
+    
+    function displayResults(contributions, dataset_id, model_id, method) {
+        // Set analysis title and description
+        const datasetName = datasetSelect.options[datasetSelect.selectedIndex].text;
+        const modelName = modelSelect.options[modelSelect.selectedIndex].text;
+        
+        document.getElementById('analysisTitle').textContent = `${method.toUpperCase()} Analysis for ${modelName}`;
+        document.getElementById('analysisDescription').textContent = 
+            `Feature contributions analysis of ${datasetName} using ${method.toUpperCase()}, showing how each data source influences the model's predictions.`;
+        
+        // Render feature contributions list
+        featureContributionsList.innerHTML = '';
+        contributions.forEach(contrib => {
+            const percentage = contrib.percentage.toFixed(1);
+            
+            const featureDiv = document.createElement('div');
+            featureDiv.className = 'feature-contribution';
+            featureDiv.innerHTML = `
+                <h6>${contrib.feature}</h6>
+                <div class="d-flex justify-content-between mb-1">
+                    <span>${contrib.name}</span>
+                    <span class="badge bg-primary">${percentage}%</span>
+                </div>
+                <div class="progress">
+                    <div class="progress-bar" role="progressbar" style="width: ${percentage}%" 
+                        aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <small class="text-muted">DOI: ${contrib.doi}</small>
+            `;
+            featureContributionsList.appendChild(featureDiv);
+        });
+        
+        // Create visualization chart
+        createContributionChart(contributions, method);
+        
+        // Show results
+        analysisResults.classList.remove('d-none');
+    }
+    
+    function createContributionChart(contributions, method) {
+        const ctx = document.getElementById('featureContributionChart').getContext('2d');
+        
+        // Destroy previous chart if it exists
+        if (contributionChart) {
+            contributionChart.destroy();
+        }
+        
+        // Extract data for chart
+        const labels = contributions.map(c => c.name);
+        const values = contributions.map(c => c.value);
+        const sources = contributions.map(c => c.feature);
+        
+        // Create colors array
+        const colors = [
+            'rgba(52, 152, 219, 0.7)',
+            'rgba(46, 204, 113, 0.7)',
+            'rgba(231, 76, 60, 0.7)',
+            'rgba(243, 156, 18, 0.7)',
+            'rgba(155, 89, 182, 0.7)'
+        ];
+        
+        // Create chart based on method
+        if (method === 'shap') {
+            // Horizontal bar chart for SHAP
+            contributionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'SHAP Value',
+                        data: values,
+                        backgroundColor: colors,
+                        borderColor: colors.map(c => c.replace('0.7', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'SHAP Feature Importance Values'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    return 'Source: ' + sources[context.dataIndex];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Contribution Value'
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            // Vertical bar chart for LIME
+            contributionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'LIME Weight',
+                        data: values,
+                        backgroundColor: colors,
+                        borderColor: colors.map(c => c.replace('0.7', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'LIME Feature Importance Weights'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    return 'Source: ' + sources[context.dataIndex];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Weight'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+
+{% block title %}Citation Knowledge Graph - AIC-IF{% endblock %}
+
+{% block head_extra %}
+<!-- D3.js for Force Graph -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<!-- ForceGraph.js library -->
+<script src="https://unpkg.com/force-graph@1.43.0/dist/force-graph.min.js"></script>
+<style>
+    #graph-container {
+        width: 100%;
+        height: 700px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background-color: #f8f9fa;
+    }
+    .node-tooltip {
+        position: absolute;
+        background-color: rgba(0,0,0,0.8);
+        color: white;
+        padding: 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        max-width: 250px;
+        z-index: 100;
+        pointer-events: none;
+        display: none;
+    }
+    .graph-controls {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 10;
+        background-color: rgba(255,255,255,0.9);
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    .legend-color {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        margin-right: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="text-primary"><i class="fas fa-project-diagram me-2"></i> Citation Knowledge Graph</h2>
+        <p class="lead">
+            Visualize the interconnected network of papers, authors, datasets, and AI citations.
+        </p>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i> This interactive graph shows how scientific knowledge flows through the AI ecosystem. Node colors represent different entity types, and connections show citation relationships.
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Knowledge Graph Visualization</h5>
+                <div>
+                    <button id="resetGraphBtn" class="btn btn-sm btn-light">
+                        <i class="fas fa-redo-alt me-1"></i> Reset
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0 position-relative">
+                <!-- Graph Controls -->
+                <div class="graph-controls">
+                    <h6>Graph Legend</h6>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #3498db;"></div>
+                        <div>Paper</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #e74c3c;"></div>
+                        <div>Author</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #2ecc71;"></div>
+                        <div>Dataset</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #9b59b6;"></div>
+                        <div>AI Model</div>
+                    </div>
+                    <hr>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="showLabelsSwitch" checked>
+                        <label class="form-check-label" for="showLabelsSwitch">Show Labels</label>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="showLinksSwitch" checked>
+                        <label class="form-check-label" for="showLinksSwitch">Show Links</label>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="use3DSwitch">
+                        <label class="form-check-label" for="use3DSwitch">3D View</label>
+                    </div>
+                    <hr>
+                    <div class="mb-2">
+                        <label for="linkStrengthRange" class="form-label">Link Strength</label>
+                        <input type="range" class="form-range" id="linkStrengthRange" min="0" max="1" step="0.1" value="0.5">
+                    </div>
+                    <div class="mb-2">
+                        <label for="chargeStrengthRange" class="form-label">Node Repulsion</label>
+                        <input type="range" class="form-range" id="chargeStrengthRange" min="-1000" max="-100" step="50" value="-300">
+                    </div>
+                </div>
+                
+                <!-- Node tooltip -->
+                <div id="node-tooltip" class="node-tooltip"></div>
+                
+                <!-- Graph container -->
+                <div id="graph-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Network Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 text-center">
+                            <h3 id="nodeCount">0</h3>
+                            <p class="mb-0 text-muted">Total Nodes</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 text-center">
+                            <h3 id="edgeCount">0</h3>
+                            <p class="mb-0 text-muted">Total Edges</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 text-center">
+                            <h3 id="density">0.0</h3>
+                            <p class="mb-0 text-muted">Network Density</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6>Node Type Distribution</h6>
+                <canvas id="nodeTypesChart" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Node Details</h5>
+            </div>
+            <div class="card-body">
+                <div id="nodeDetailPlaceholder" class="text-center py-5">
+                    <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                    <p>Click on a node in the graph to see its details here.</p>
+                </div>
+                
+                <div id="nodeDetails" class="d-none">
+                    <h5 id="nodeTitle">Node Title</h5>
+                    <p id="nodeType" class="badge bg-primary">Type</p>
+                    
+                    <hr>
+                    
+                    <div class="mb-3">
+                        <h6>Connections</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-muted">Incoming</h6>
+                                <ul id="incomingConnections" class="list-group list-group-flush"></ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-muted">Outgoing</h6>
+                                <ul id="outgoingConnections" class="list-group list-group-flush"></ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="nodeMetrics" class="mb-3">
+                        <h6>Node Metrics</h6>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <div class="border rounded p-2 text-center">
+                                    <p class="mb-0 text-muted">Incoming</p>
+                                    <h5 id="inDegree">0</h5>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="border rounded p-2 text-center">
+                                    <p class="mb-0 text-muted">Outgoing</p>
+                                    <h5 id="outDegree">0</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Graph data from backend
+    const graphData = {{ graph_data|tojson }};
+    
+    // Graph container
+    const graphContainer = document.getElementById('graph-container');
+    
+    // Create Force Graph instance
+    const Graph = ForceGraph()
+        (graphContainer)
+        .graphData(graphData)
+        .nodeId('id')
+        .nodeLabel('label')
+        .nodeVal('size')
+        .nodeColor(node => node.color)
+        .linkSource('source')
+        .linkTarget('target')
+        .linkLabel('label')
+        .linkWidth(link => link.weight || 1)
+        .linkDirectionalArrowLength(6)
+        .linkDirectionalArrowRelPos(1)
+        .onNodeClick(node => {
+            showNodeDetails(node);
+            // Center view on node
+            Graph.centerAt(node.x, node.y, 1000);
+            Graph.zoom(2, 1000);
+        })
+        .onNodeHover(node => {
+            if (node) {
+                const tooltip = document.getElementById('node-tooltip');
+                tooltip.innerHTML = `
+                    <div>
+                        <strong>${node.label}</strong><br>
+                        Type: ${node.type}<br>
+                        ${node.type === 'paper' || node.type === 'dataset' ? `ID: ${node.id}` : ''}
+                    </div>
+                `;
+                tooltip.style.display = 'block';
+                tooltip.style.left = (event.pageX + 10) + 'px';
+                tooltip.style.top = (event.pageY + 10) + 'px';
+            } else {
+                document.getElementById('node-tooltip').style.display = 'none';
+            }
+        });
+    
+    // UI Controls
+    
+    // Show/hide labels
+    document.getElementById('showLabelsSwitch').addEventListener('change', e => {
+        if (e.target.checked) {
+            Graph.nodeLabel('label');
+        } else {
+            Graph.nodeLabel(null);
+        }
+    });
+    
+    // Show/hide links
+    document.getElementById('showLinksSwitch').addEventListener('change', e => {
+        const links = Graph.graphData().links;
+        links.forEach(link => { link.hidden = !e.target.checked; });
+        Graph.graphData({ nodes: Graph.graphData().nodes, links: links });
+    });
+    
+    // 2D/3D toggle
+    document.getElementById('use3DSwitch').addEventListener('change', e => {
+        graphContainer.innerHTML = '';
+        if (e.target.checked) {
+            // Switch to 3D
+            const Graph3D = ForceGraph3D()
+                (graphContainer)
+                .graphData(graphData)
+                .nodeId('id')
+                .nodeLabel('label')
+                .nodeVal('size')
+                .nodeColor(node => node.color)
+                .linkSource('source')
+                .linkTarget('target')
+                .linkLabel('label')
+                .linkWidth(link => link.weight || 1)
+                .linkDirectionalArrowLength(6)
+                .linkDirectionalArrowRelPos(1);
+                
+            window.graph = Graph3D; // Store reference
+        } else {
+            // Switch back to 2D
+            const Graph2D = ForceGraph()
+                (graphContainer)
+                .graphData(graphData)
+                .nodeId('id')
+                .nodeLabel('label')
+                .nodeVal('size')
+                .nodeColor(node => node.color)
+                .linkSource('source')
+                .linkTarget('target')
+                .linkLabel('label')
+                .linkWidth(link => link.weight || 1)
+                .linkDirectionalArrowLength(6)
+                .linkDirectionalArrowRelPos(1);
+                
+            window.graph = Graph2D; // Store reference
+        }
+    });
+    
+    // Link strength
+    document.getElementById('linkStrengthRange').addEventListener('input', e => {
+        Graph.d3Force('link').strength(+e.target.value);
+        Graph.d3ReheatSimulation();
+    });
+    
+    // Charge strength (node repulsion)
+    document.getElementById('chargeStrengthRange').addEventListener('input', e => {
+        Graph.d3Force('charge').strength(+e.target.value);
+        Graph.d3ReheatSimulation();
+    });
+    
+    // Reset button
+    document.getElementById('resetGraphBtn').addEventListener('click', () => {
+        Graph.zoomToFit(1000);
+    });
+    
+    // Store graph instance globally for debugging
+    window.graph = Graph;
+    
+    // Update network statistics
+    updateNetworkStats(graphData);
+    
+    // Create node type distribution chart
+    createNodeTypeChart(graphData.nodes);
+    
+    // Update node details when clicking on a node
+    function showNodeDetails(node) {
+        const nodeDetails = document.getElementById('nodeDetails');
+        const placeholder = document.getElementById('nodeDetailPlaceholder');
+        
+        // Set node details
+        document.getElementById('nodeTitle').textContent = node.label;
+        document.getElementById('nodeType').textContent = node.type.charAt(0).toUpperCase() + node.type.slice(1);
+        
+        // Set color of type badge
+        document.getElementById('nodeType').className = `badge bg-${getNodeTypeColor(node.type)}`;
+        
+        // Calculate connections
+        const incoming = graphData.links.filter(link => link.target === node.id);
+        const outgoing = graphData.links.filter(link => link.source === node.id);
+        
+        // Set metrics
+        document.getElementById('inDegree').textContent = incoming.length;
+        document.getElementById('outDegree').textContent = outgoing.length;
+        
+        // Render incoming connections
+        const incomingConnectionsList = document.getElementById('incomingConnections');
+        incomingConnectionsList.innerHTML = '';
+        
+        if (incoming.length === 0) {
+            incomingConnectionsList.innerHTML = '<li class="list-group-item text-muted">No incoming connections</li>';
+        } else {
+            incoming.forEach(link => {
+                const sourceNode = graphData.nodes.find(n => n.id === link.source);
+                if (sourceNode) {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.innerHTML = `
+                        <span class="badge bg-${getNodeTypeColor(sourceNode.type)} me-2">${sourceNode.type}</span>
+                        ${sourceNode.label}
+                        ${link.relationship ? `<small class="text-muted">(${link.relationship})</small>` : ''}
+                    `;
+                    incomingConnectionsList.appendChild(li);
+                }
+            });
+        }
+        
+        // Render outgoing connections
+        const outgoingConnectionsList = document.getElementById('outgoingConnections');
+        outgoingConnectionsList.innerHTML = '';
+        
+        if (outgoing.length === 0) {
+            outgoingConnectionsList.innerHTML = '<li class="list-group-item text-muted">No outgoing connections</li>';
+        } else {
+            outgoing.forEach(link => {
+                const targetNode = graphData.nodes.find(n => n.id === link.target);
+                if (targetNode) {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.innerHTML = `
+                        <span class="badge bg-${getNodeTypeColor(targetNode.type)} me-2">${targetNode.type}</span>
+                        ${targetNode.label}
+                        ${link.relationship ? `<small class="text-muted">(${link.relationship})</small>` : ''}
+                    `;
+                    outgoingConnectionsList.appendChild(li);
+                }
+            });
+        }
+        
+        // Show details and hide placeholder
+        nodeDetails.classList.remove('d-none');
+        placeholder.classList.add('d-none');
+    }
+    
+    // Helper function to get node type color
+    function getNodeTypeColor(type) {
+        switch (type) {
+            case 'paper': return 'primary';
+            case 'author': return 'danger';
+            case 'dataset': return 'success';
+            case 'ai_model': return 'purple';
+            default: return 'secondary';
+        }
+    }
+    
+    // Update network statistics
+    function updateNetworkStats(graphData) {
+        const nodeCount = graphData.nodes.length;
+        const edgeCount = graphData.links.length;
+        // Network density = actual edges / potential edges
+        // For directed graph: potential edges = n(n-1)
+        const density = nodeCount > 1 ? (edgeCount / (nodeCount * (nodeCount - 1))).toFixed(4) : 0;
+        
+        document.getElementById('nodeCount').textContent = nodeCount;
+        document.getElementById('edgeCount').textContent = edgeCount;
+        document.getElementById('density').textContent = density;
+    }
+    
+    // Create node type distribution chart
+    function createNodeTypeChart(nodes) {
+        // Count node types
+        const nodeTypes = {};
+        nodes.forEach(node => {
+            nodeTypes[node.type] = (nodeTypes[node.type] || 0) + 1;
+        });
+        
+        // Prepare chart data
+        const labels = Object.keys(nodeTypes).map(type => type.charAt(0).toUpperCase() + type.slice(1));
+        const data = Object.values(nodeTypes);
+        
+        // Define colors
+        const backgroundColor = [
+            'rgba(52, 152, 219, 0.7)',  // Blue (papers)
+            'rgba(231, 76, 60, 0.7)',   // Red (authors)
+            'rgba(46, 204, 113, 0.7)',  // Green (datasets)
+            'rgba(155, 89, 182, 0.7)'   // Purple (AI models)
+        ];
+        
+        // Create chart
+        const ctx = document.getElementById('nodeTypesChart').getContext('2d');
+        const nodeTypesChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: backgroundColor,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Node Distribution by Type'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
