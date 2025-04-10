@@ -19,6 +19,10 @@ The AI-Driven Citation Impact Factor (AIC-IF) framework addresses the challenge 
 2. **Knowledge Graph**: Representation of relationships between entities
 3. **Contribution Analysis**: Quantifies source contributions using SHAP and LIME
 4. **Attribution Mechanism**: Distributes credit based on analysis
+5. **Impact Factor Calculation**: Computes the AIC-IF score using the formula:
+   ```
+   AIC-IF = (citation_count × 0.4 + avg_contribution × 0.3 + avg_recency × 0.2 + model_diversity × 0.1) × 10
+   ```
 
 ## Getting Started
 

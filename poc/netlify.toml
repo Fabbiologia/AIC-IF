@@ -1,0 +1,18 @@
+[build]
+  command = "pip install -r requirements.txt && pip install netlify-lambda && netlify-lambda build functions"
+  functions = "lambda"
+  publish = "static"
+
+[build.environment]
+  # Python version
+  PYTHON_VERSION = "3.8"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
